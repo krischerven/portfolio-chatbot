@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+go fmt
+go mod tidy
+go build
+./resume-chatbot
