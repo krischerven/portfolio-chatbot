@@ -1,4 +1,4 @@
-module git.krischerven.info/resume-chatbot
+module git.krischerven.info/portfolio-chatbot
 
 go 1.19
 

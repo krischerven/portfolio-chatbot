@@ -80,7 +80,7 @@ func main() {
 	}
 	information := readFile(outFile)
 
-	fmt.Println("Hello! I am resume-chatbot. Please go ahead and ask me any questions you have about Kris!")
+	fmt.Println("Hello! I am portfolio-chatbot. Please go ahead and ask me any questions you have about Kris!")
 	scanner := bufio.NewScanner(os.Stdin)
 	client := initializeClient()
 	for scanner.Scan() {
