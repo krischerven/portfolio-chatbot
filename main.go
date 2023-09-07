@@ -27,11 +27,14 @@ asking the question. Never use phrases like "based on the information provided."
 the information you are being asked for.`
 )
 
-var facts = []string{
-	// <2023-09-06 Wed> GPT-3 thinks its October 2022 unless you tell it otherwise
-	"The current date is September 6, 2023.",
-	"Kris Cherven is 24 years old.",
-}
+var (
+	facts = []string{
+		// <2023-09-06 Wed> GPT-3 thinks its October 2022 unless you tell it otherwise
+		"The current date is September 6, 2023.",
+		"Kris Cherven is 24 years old.",
+	}
+	logger = log.New()
+)
 
 func fail(err error) {
 	if err != nil {
@@ -93,12 +96,14 @@ func postQuestion(ctx *gin.Context) {
 	}
 	var question data
 	if err := ctx.BindJSON(&question); err != nil {
-		fail(err) // FIXME
+		logger.Debug(err)
+		return
 	}
 	ctx.IndentedJSON(http.StatusCreated, answerQuestion(question.Question, information(), initializeClient()))
 }
 
 func main() {
+	logger.SetLevel(log.DebugLevel)
 	if localMode {
 		scanner := bufio.NewScanner(os.Stdin)
 		client := initializeClient()
