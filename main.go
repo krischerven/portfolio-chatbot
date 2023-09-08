@@ -45,7 +45,7 @@ func readFile(name string) string {
 
 func initializeClient() *openai.Client {
 
-	apiKey := readFile("API_KEY")
+	apiKey := strings.TrimRight(readFile("API_KEY"), "\r\n")
 	if apiKey == "" {
 		log.Fatal("Missing API key")
 	}
