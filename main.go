@@ -1,3 +1,8 @@
+/* *****************************************************************
+   * main.go: The entire source code for the chatbot on this page. *
+   * https://git.krischerven.info/dev/portfolio-chatbot            *
+   ***************************************************************** */
+
 package main
 
 import (
