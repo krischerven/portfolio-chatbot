@@ -4,19 +4,14 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 	openai "github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
-	"net/http"
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 )
 
 const (
-	localMode    = false
 	instructions = `The following is information about a software engineer named Kris Cherven. There is a resume section and a facts section.
 Information in the facts section must take priority over information in the resume section. The resume section starts after the text
 "BEGINNING OF RESUME SECTION" and ends after the text "END OF RESUME SECTION". The facts section starts after the text "BEGINNING OF FACTS
@@ -71,7 +66,7 @@ func information() string {
 	return readFile(outFile)
 }
 
-func answerQuestion(question string, information string, client *openai.Client) string {
+func answerQuestion(question string, client *openai.Client) string {
 
 	// https://pkg.go.dev/github.com/PullRequestInc/go-gpt3#CompletionRequest
 	resp, err := client.CreateChatCompletion(context.Background(),
@@ -81,7 +76,7 @@ func answerQuestion(question string, information string, client *openai.Client) 
 			Messages: []openai.ChatCompletionMessage{
 				{
 					Role:    openai.ChatMessageRoleUser,
-					Content: information + "\n" + question,
+					Content: information() + "\n" + question,
 				},
 			},
 		})
@@ -90,40 +85,24 @@ func answerQuestion(question string, information string, client *openai.Client) 
 	return resp.Choices[0].Message.Content
 }
 
-func postQuestion(ctx *gin.Context) {
-	type data struct {
-		Question string `json:"question"`
-	}
-	var question data
-	if err := ctx.BindJSON(&question); err != nil {
-		logger.Debug(err)
-		return
-	}
-	ctx.IndentedJSON(http.StatusCreated, answerQuestion(question.Question, information(), initializeClient()))
-}
-
 func main() {
-	logger.SetLevel(log.DebugLevel)
-	if localMode {
-		scanner := bufio.NewScanner(os.Stdin)
-		client := initializeClient()
-		fmt.Println("Hello! I am portfolio-chatbot. Please go ahead and ask me any questions you have about Kris!")
-		for scanner.Scan() {
-			fmt.Println(answerQuestion(scanner.Text(), information(), client))
+	if len(os.Args) > 1 {
+		if os.Args[1] == "--question" {
+			if len(os.Args) > 2 {
+				fmt.Println(answerQuestion(os.Args[2], initializeClient()))
+			} else {
+				fmt.Println("Error: Missing question after '--question'.")
+			}
+		} else {
+			fmt.Println("Error: Invalid argument(s). Try ./portfolio-chatbot --question \"Who is Kris?\"")
 		}
 	} else {
-		router := gin.Default()
-		router.ForwardedByClientIP = true
-		router.SetTrustedProxies([]string{"krischerven.info"})
-		router.Use(cors.New(cors.Config{
-			AllowOrigins:     []string{"https://krischerven.info:443", "http://localhost:5000"},
-			AllowMethods:     []string{"POST"},
-			AllowHeaders:     []string{"Content-Type"},
-			ExposeHeaders:    []string{"Content-Length"},
-			AllowCredentials: true,
-			MaxAge:           5 * time.Minute,
-		}))
-		router.POST("/question", postQuestion)
-		router.Run("localhost:3103")
+		logger.SetLevel(log.DebugLevel)
+		scanner := bufio.NewScanner(os.Stdin)
+		client := initializeClient()
+		fmt.Println("(interactive mode) Hello! I am portfolio-chatbot. Please go ahead and ask me any questions you have about Kris!")
+		for scanner.Scan() {
+			fmt.Println(answerQuestion(scanner.Text(), client))
+		}
 	}
 }
