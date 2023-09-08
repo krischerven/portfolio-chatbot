@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	openai "github.com/sashabaranov/go-openai"
 	logrus "github.com/sirupsen/logrus"
@@ -33,7 +34,7 @@ var (
 
 func fail(err error) {
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 }
 
@@ -53,9 +54,23 @@ func initializeClient() *openai.Client {
 	return openai.NewClient(apiKey)
 }
 
+func fileExists(name string) bool {
+	_, err := os.Stat(name)
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	panic(err)
+}
+
 func information() string {
 	outFile := "instructions.txt"
 	{
+		if !fileExists("resume.pdf") {
+			log.Fatal("resume.pdf does not exist; aborting")
+		}
 		fail(exec.Command("pdftotext", "resume.pdf").Run())
 		fail(exec.Command("mv", "resume.txt", outFile).Run())
 		text := readFile(outFile)
