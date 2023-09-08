@@ -5,3 +5,5 @@ for x in $OUTPUT; do
 done
 go mod tidy
 go build
+# update MD5
+go build

@@ -1,8 +1,3 @@
 #!/usr/bin/env bash
-OUTPUT=$(go fmt) # format and organize imports
-for x in $OUTPUT; do
-  echo "Formatted $x"
-done
-go mod tidy
-go build
+./build
 ./portfolio-chatbot
