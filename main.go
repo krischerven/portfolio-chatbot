@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	openai "github.com/sashabaranov/go-openai"
-	log "github.com/sirupsen/logrus"
+	logrus "github.com/sirupsen/logrus"
 	"os"
 	"os/exec"
 	"strings"
@@ -28,7 +28,7 @@ var (
 		"The current date is September 6, 2023.",
 		"Kris Cherven is 24 years old.",
 	}
-	logger = log.New()
+	log = logrus.New()
 )
 
 func fail(err error) {
@@ -97,7 +97,7 @@ func main() {
 			fmt.Println("Error: Invalid argument(s). Try ./portfolio-chatbot --question \"Who is Kris?\"")
 		}
 	} else {
-		logger.SetLevel(log.DebugLevel)
+		log.SetLevel(logrus.DebugLevel)
 		scanner := bufio.NewScanner(os.Stdin)
 		client := initializeClient()
 		fmt.Println("(interactive mode) Hello! I am portfolio-chatbot. Please go ahead and ask me any questions you have about Kris!")
