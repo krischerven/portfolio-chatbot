@@ -73,10 +73,15 @@ func fileExists(name string) bool {
 func information() string {
 	outFile := "instructions.txt"
 	{
-		if !fileExists("resume.pdf") {
+		if fileExists("resume.pdf") {
+			fail(exec.Command("pdftotext", "resume.pdf").Run())
+			// Use the resume.pdf from the parent project (portfolio-webpage)
+		} else if fileExists("../static/misc/resume.pdf") {
+			fail(exec.Command("pdftotext", "../static/misc/resume.pdf").Run())
+			fail(exec.Command("mv", "../static/misc/resume.txt", "resume.txt").Run())
+		} else {
 			log.Fatal("resume.pdf does not exist; aborting")
 		}
-		fail(exec.Command("pdftotext", "resume.pdf").Run())
 		fail(exec.Command("mv", "resume.txt", outFile).Run())
 		text := readFile(outFile)
 		text = strings.Replace(instructions, "\n", " ", -1) + "\n\nBEGINNING OF RESUME SECTION\n\n" + text + "\n\nEND OF RESUME SECTION\n\n"
