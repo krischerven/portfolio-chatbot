@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 const (
@@ -31,7 +32,7 @@ the information you are being asked for.`
 var (
 	facts = []string{
 		// <2023-09-06 Wed> GPT-3 thinks its October 2022 unless you tell it otherwise
-		"The current date is September 6, 2023.",
+		fmt.Sprintf("The current date is %s %d, %d.", time.Now().Month(), time.Now().Day(), time.Now().Year()),
 		"Kris Cherven is 24 years old.",
 	}
 	log = logrus.New()
