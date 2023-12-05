@@ -77,9 +77,9 @@ func information() string {
 		if fileExists("resume.pdf") {
 			fail(exec.Command("pdftotext", "resume.pdf").Run())
 			// Use the resume.pdf from the parent project (portfolio-webpage)
-		} else if fileExists("../static/misc/resume.pdf") {
-			fail(exec.Command("pdftotext", "../static/misc/resume.pdf").Run())
-			fail(exec.Command("mv", "../static/misc/resume.txt", "resume.txt").Run())
+		} else if fileExists("../portfolio-webpage-untracked/resume.pdf") {
+			fail(exec.Command("pdftotext", "../portfolio-webpage-untracked/resume.pdf").Run())
+			fail(exec.Command("mv", "../portfolio-webpage-untracked/resume.txt", "resume.txt").Run())
 		} else {
 			log.Fatal("resume.pdf does not exist; aborting")
 		}
