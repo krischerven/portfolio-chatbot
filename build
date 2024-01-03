@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-OUTPUT=$(go fmt) # format and organize imports
-for x in $OUTPUT; do
-   echo "Formatted $x"
-done
+./format
 go mod tidy
 go build
 # update MD5
