@@ -10,12 +10,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	openai "github.com/sashabaranov/go-openai"
-	logrus "github.com/sirupsen/logrus"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
+
+	openai "github.com/sashabaranov/go-openai"
+	logrus "github.com/sirupsen/logrus"
 )
 
 const (
@@ -92,7 +94,46 @@ func information() string {
 	return readFile(outFile)
 }
 
+type settings struct {
+	chatbotEnabled bool
+}
+
+func getSettings() settings {
+	settings := settings{}
+	lines := strings.Split(readFile("./settings"), "\n")
+	for i, line := range lines {
+		if i == len(lines)-1 && strings.Trim(line, " ") == "" {
+			break
+		}
+		kv := strings.Split(line, "=")
+		if len(kv) != 2 {
+			log.Errorf("Found malformed line '%s' in ./settings; skipping", line)
+			continue
+		}
+		setting := kv[0]
+		val := kv[1]
+		switch setting {
+		case "chatbot-enabled":
+			if val == "true" || val == "false" {
+				var err error
+				settings.chatbotEnabled, err = strconv.ParseBool(val)
+				fail(err)
+			} else {
+				log.Fatalf("Setting '%s' has invalid val '%v'", setting, val)
+			}
+		default:
+			log.Errorf("Found setting '%s' with val '%v', but it's not a valid setting.", setting, val)
+		}
+	}
+	return settings
+}
+
 func answerQuestion(question string, client *openai.Client) string {
+
+	settings := getSettings()
+	if settings.chatbotEnabled == false {
+		return "Sorry, but I cannot answer your question at the moment. Please try again later."
+	}
 
 	// https://pkg.go.dev/github.com/PullRequestInc/go-gpt3#CompletionRequest
 	resp, err := client.CreateChatCompletion(context.Background(),
