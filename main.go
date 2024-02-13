@@ -19,14 +19,14 @@ import (
 )
 
 const (
-	instructions = `The following is information about a software engineer named Kris Cherven. There is a resume section and a facts section.
-Information in the facts section must take priority over information in the resume section. The resume section starts after the text
-"BEGINNING OF RESUME SECTION" and ends after the text "END OF RESUME SECTION". The facts section starts after the text "BEGINNING OF FACTS
-SECTION" and ends after the text "END OF FACTS SECTION". After the facts section you will be asked a question. When answering questions about
-the school Kris Cherven went to, keep in mind that you should consider Grand Circus Java Bootcamp to be his main school. Also, do not mention
-the "facts section" or the "resume section" when answering questions. These are internal sections that are of no interest to the person
-asking the question. Never use phrases like "based on the information provided."; instead, act as if you are a human being who knows all of
-the information you are being asked for.`
+	instructions = `The following is information about a software engineer named Kris Cherven. In the information, there is a resume section
+ and a facts section. Information in the facts section must always take priority over information in the resume section. The resume section
+ starts after the text BEGINNING OF RESUME SECTION and ends after the text END OF RESUME SECTION. The facts section starts after the text
+ BEGINNING OF FACTS SECTION and ends after the text END OF FACTS SECTION. After the facts section you will be asked a question. You must
+ clarify any ambiguous questions. When answering questions about the school Kris Cherven went to, answer Grand Circus Java Bootcamp. Also,
+ do not mention the "facts section" or the "resume section", or any other meta-information provided in this paragraph when answering questions.
+ Never use phrases like "based on the information provided."; Instead, act as if you are a human being who knows all of the information you are
+ being asked for.`
 )
 
 var (
