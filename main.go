@@ -21,14 +21,16 @@ import (
 )
 
 const (
-	instructions = `The following is information about a software engineer named Kris Cherven. In the information, there is a resume section
- and a facts section. Information in the facts section must always take priority over information in the resume section. The resume section
- starts after the text BEGINNING OF RESUME SECTION and ends after the text END OF RESUME SECTION. The facts section starts after the text
- BEGINNING OF FACTS SECTION and ends after the text END OF FACTS SECTION. After the facts section you will be asked a question. You must
- clarify any ambiguous questions. When answering questions about the school Kris Cherven went to, answer Grand Circus Java Bootcamp. Also,
- do not mention the "facts section" or the "resume section", or any other meta-information provided in this paragraph when answering questions.
- Never use phrases like "based on the information provided."; Instead, act as if you are a human being who knows all of the information you are
- being asked for.`
+	instructions1 = `You are an assistant who answers career-related questions about a software engineer named Kris Cherven. The following
+is information about his career. In this information, there is a 'facts section' and a 'resume section'. Information in the facts section
+takes priority over information in the resume section. The resume section starts after the text BEGINNING OF RESUME SECTION and ends at the
+text END OF RESUME SECTION. The facts section starts after the text BEGINNING OF FACTS SECTION and ends at the text END OF FACTS SECTION.
+When answering questions about the school Kris Cherven went to, talk about Grand Circus Java Bootcamp. Do not mention the 'facts section'
+or the 'resume section', or "the information provided" or any other meta-information provided in this paragraph when answering questions.
+The information about Kris Cherven is as follows:`
+
+	instructions2 = `Please answer the following question about Kris Cherven. If you do not understand the question, or if the question is
+not a valid English question, please ask the questioner to clarify what they are asking:`
 )
 
 var (
@@ -87,8 +89,8 @@ func information() string {
 		}
 		fail(exec.Command("mv", "resume.txt", outFile).Run())
 		text := readFile(outFile)
-		text = strings.Replace(instructions, "\n", " ", -1) + "\n\nBEGINNING OF RESUME SECTION\n\n" + text + "\n\nEND OF RESUME SECTION\n\n"
-		text = text + "BEGINNING OF FACTS SECTION\n\n" + strings.Join(facts, "\n") + "\n\nEND OF FACTS SECTION\n"
+		text = strings.Replace(instructions1, "\n", " ", -1) + "\n\nBEGINNING OF RESUME SECTION\n\n" + text + "\n\nEND OF RESUME SECTION\n\n"
+		text = text + "BEGINNING OF FACTS SECTION\n\n" + strings.Join(facts, "\n") + "\n\nEND OF FACTS SECTION\n\n" + instructions2 + "\n"
 		os.WriteFile(outFile, []byte(text), 0644)
 	}
 	return readFile(outFile)
@@ -135,6 +137,8 @@ func answerQuestion(question string, client *openai.Client) string {
 		return "Sorry, but I cannot answer your question at the moment. Please try again later."
 	}
 
+	content := information() + "\n" + question
+
 	// https://pkg.go.dev/github.com/sashabaranov/go-openai#Client.CreateChatCompletion
 	resp, err := client.CreateChatCompletion(context.Background(),
 		openai.ChatCompletionRequest{
@@ -143,7 +147,7 @@ func answerQuestion(question string, client *openai.Client) string {
 			Messages: []openai.ChatCompletionMessage{
 				{
 					Role:    openai.ChatMessageRoleUser,
-					Content: information() + "\n" + question,
+					Content: content,
 				},
 			},
 		})
