@@ -142,7 +142,7 @@ func answerQuestion(question string, client *openai.Client) string {
 	// https://pkg.go.dev/github.com/sashabaranov/go-openai#Client.CreateChatCompletion
 	resp, err := client.CreateChatCompletion(context.Background(),
 		openai.ChatCompletionRequest{
-			Model:     openai.GPT3Dot5Turbo,
+			Model:     openai.GPT4,
 			MaxTokens: 200,
 			Messages: []openai.ChatCompletionMessage{
 				{
