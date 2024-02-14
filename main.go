@@ -135,7 +135,7 @@ func answerQuestion(question string, client *openai.Client) string {
 		return "Sorry, but I cannot answer your question at the moment. Please try again later."
 	}
 
-	// https://pkg.go.dev/github.com/PullRequestInc/go-gpt3#CompletionRequest
+	// https://pkg.go.dev/github.com/sashabaranov/go-openai#Client.CreateChatCompletion
 	resp, err := client.CreateChatCompletion(context.Background(),
 		openai.ChatCompletionRequest{
 			Model:     openai.GPT3Dot5Turbo,
