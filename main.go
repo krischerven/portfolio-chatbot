@@ -29,8 +29,8 @@ When answering questions about the school Kris Cherven went to, talk about Grand
 or the 'resume section', or "the information provided" or any other meta-information provided in this paragraph when answering questions.
 The information about Kris Cherven is as follows:`
 
-	instructions2 = `Please answer the following question about Kris Cherven. If you do not understand the question, or if the question is
-not a valid English question, please ask the questioner to clarify what they are asking:`
+	instructions2 = `Please answer the following question about Kris Cherven. Please try to answer the question briefly. If you do not
+understand the question, or if the question is not a valid English question, please ask the questioner to clarify what they are asking:`
 )
 
 var (
