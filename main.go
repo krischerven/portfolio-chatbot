@@ -98,9 +98,18 @@ func information() string {
 	return readFile(outFile)
 }
 
+type Maybe_t[T any] struct {
+	v T
+	ok bool
+}
+
+func Maybe[T any](x T) Maybe_t[T] {
+	return Maybe_t[T]{x, true}
+}
+
 type settings struct {
-	chatbotEnabled    bool
-	maxQuestionLength uint64
+	chatbotEnabled    Maybe_t[bool]
+	maxQuestionLength Maybe_t[uint64]
 }
 
 func getSettings() settings {
@@ -120,16 +129,16 @@ func getSettings() settings {
 		switch setting {
 		case "chatbot-enabled":
 			if val == "true" || val == "false" {
-				var err error
-				settings.chatbotEnabled, err = strconv.ParseBool(val)
+				b, err := strconv.ParseBool(val)
+				settings.chatbotEnabled = Maybe(b)
 				fail(err)
 			} else {
 				log.Fatalf("Setting '%s' has invalid val '%v'", setting, val)
 			}
 		case "max-question-length":
-			len, err := strconv.ParseUint(val, 10, 64)
+			len, err := strconv.ParseUint(val, 10, 16)
 			if err == nil {
-				settings.maxQuestionLength = len
+				settings.maxQuestionLength = Maybe(len)
 			} else {
 				log.Fatalf("Setting '%s' has invalid val '%v'", setting, val)
 			}
@@ -137,19 +146,24 @@ func getSettings() settings {
 			log.Errorf("Found setting '%s' with val '%v', but it's not a valid setting.", setting, val)
 		}
 	}
+	if !settings.chatbotEnabled.ok {
+		log.Fatalf("Missing setting: chatbot-enabled")
+	}
+	if !settings.maxQuestionLength.ok {
+		log.Fatalf("Missing setting: max-question-length")
+	}
 	return settings
 }
 
-func answerQuestion(question string, client *openai.Client) string {
+func answerQuestion(question string, client *openai.Client, settings settings) string {
 
-	settings := getSettings()
-	if settings.chatbotEnabled == false {
+	if settings.chatbotEnabled.v == false {
 		return "Sorry, but I cannot answer your question at the moment. Please try again later."
 	}
 
-	if len(question) > int(settings.maxQuestionLength) {
-		return fmt.Sprintf("You question is too long (> %d characters). Please condense it and try again.",
-			settings.maxQuestionLength)
+	if len(question) > int(settings.maxQuestionLength.v) {
+		return fmt.Sprintf("You question is too long (>%d characters). Please condense it and try again.",
+			settings.maxQuestionLength.v)
 	}
 
 	last10Questions = append(last10Questions, question)
@@ -177,10 +191,11 @@ func answerQuestion(question string, client *openai.Client) string {
 }
 
 func main() {
+	settings := getSettings() // handle failure early
 	if len(os.Args) > 1 {
 		if os.Args[1] == "--question" {
 			if len(os.Args) > 2 {
-				fmt.Println(answerQuestion(os.Args[2], initializeClient()))
+				fmt.Println(answerQuestion(os.Args[2], initializeClient(), settings))
 			} else {
 				fmt.Println("Error: Missing question after '--question'.")
 			}
@@ -193,7 +208,7 @@ func main() {
 		client := initializeClient()
 		fmt.Println("(interactive mode) Hello! I am portfolio-chatbot. Please go ahead and ask me any questions you have about Kris!")
 		for scanner.Scan() {
-			fmt.Println(answerQuestion(scanner.Text(), client))
+			fmt.Println(answerQuestion(scanner.Text(), client, settings))
 		}
 	}
 }
