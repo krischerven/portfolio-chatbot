@@ -99,7 +99,8 @@ func information() string {
 }
 
 type settings struct {
-	chatbotEnabled bool
+	chatbotEnabled    bool
+	maxQuestionLength uint64
 }
 
 func getSettings() settings {
@@ -125,6 +126,13 @@ func getSettings() settings {
 			} else {
 				log.Fatalf("Setting '%s' has invalid val '%v'", setting, val)
 			}
+		case "max-question-length":
+			len, err := strconv.ParseUint(val, 10, 64)
+			if err == nil {
+				settings.maxQuestionLength = len
+			} else {
+				log.Fatalf("Setting '%s' has invalid val '%v'", setting, val)
+			}
 		default:
 			log.Errorf("Found setting '%s' with val '%v', but it's not a valid setting.", setting, val)
 		}
@@ -137,6 +145,11 @@ func answerQuestion(question string, client *openai.Client) string {
 	settings := getSettings()
 	if settings.chatbotEnabled == false {
 		return "Sorry, but I cannot answer your question at the moment. Please try again later."
+	}
+
+	if len(question) > int(settings.maxQuestionLength) {
+		return fmt.Sprintf("You question is too long (> %d characters). Please condense it and try again.",
+			settings.maxQuestionLength)
 	}
 
 	last10Questions = append(last10Questions, question)

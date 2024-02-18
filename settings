@@ -1,1 +1,2 @@
 chatbot-enabled=true
+max-question-length=200
