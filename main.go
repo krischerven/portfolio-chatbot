@@ -29,8 +29,9 @@ When answering questions about the school Kris Cherven went to, talk about Grand
 or the 'resume section', or "the information provided" or any other meta-information provided in this paragraph when answering questions.
 The information about Kris Cherven is as follows:`
 
-	instructions2 = `Please answer the following question about Kris Cherven. Please try to answer the question briefly. If you do not
-understand the question, or if the question is not a valid English question, please ask the questioner to clarify what they are asking:`
+	instructions2 = `Please answer the last of the following questions about Kris Cherven, using the previous questions as context. Please
+try to answer the question briefly. If you do not understand the question, or if the question is not a valid English question, please ask
+the questioner to clarify what they are asking:`
 )
 
 var (
@@ -39,7 +40,8 @@ var (
 		fmt.Sprintf("The current date is %s %d, %d.", time.Now().Month(), time.Now().Day(), time.Now().Year()),
 		"Kris Cherven is 24 years old.",
 	}
-	log = logrus.New()
+	last10Questions []string
+	log             = logrus.New()
 )
 
 func fail(err error) {
@@ -137,7 +139,12 @@ func answerQuestion(question string, client *openai.Client) string {
 		return "Sorry, but I cannot answer your question at the moment. Please try again later."
 	}
 
-	content := information() + "\n" + question
+	last10Questions = append(last10Questions, question)
+	if len(last10Questions) > 10 {
+		last10Questions = last10Questions[1:11]
+	}
+
+	content := information() + "\n" + strings.Join(last10Questions, "\n")
 
 	// https://pkg.go.dev/github.com/sashabaranov/go-openai#Client.CreateChatCompletion
 	resp, err := client.CreateChatCompletion(context.Background(),
