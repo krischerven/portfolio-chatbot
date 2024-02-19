@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+if grep -q "chatbot-enabled=false" settings; then
+    sed -i 's/chatbot-enabled=false/chatbot-enabled=true/' settings
+elif grep -q "chatbot-enabled=true" settings; then
+    sed -i 's/chatbot-enabled=true/chatbot-enabled=false/' settings
+fi
