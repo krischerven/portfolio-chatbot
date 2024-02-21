@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+if [ "$1" == "" ]; then
+    sort .gitignore -o .gitignore
+    exit 0
+fi
+echo "$1" >> .gitignore
+sort .gitignore -o .gitignore
