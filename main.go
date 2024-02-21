@@ -99,7 +99,7 @@ func information() string {
 }
 
 type Maybe_t[T any] struct {
-	v T
+	v  T
 	ok bool
 }
 
