@@ -3,13 +3,13 @@ MAIN_DOTGO_HEADER=$(head -n 4 main.go)
 MAIN_DOTGO_BODY=$(tail -n +5 main.go)
 echo "$MAIN_DOTGO_BODY" > main.go
 
-OUTPUT=$(gofmt -w "$PWD") # format and organize imports
+gofmt -w "$PWD" # format and organize imports
 
 MAIN_DOTGO_BODY=$(cat main.go)
 echo "$MAIN_DOTGO_HEADER" > main.go
 echo "" >> main.go # add missing newline
 echo "$MAIN_DOTGO_BODY" >> main.go
 
-for x in $OUTPUT; do
-   echo "Formatted $x"
+for x in "$PWD"/*.go; do
+   echo "Formatted $(basename "$x")"
 done
