@@ -16,8 +16,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	openai "github.com/sashabaranov/go-openai"
 	logrus "github.com/sirupsen/logrus"
+	"math/rand"
+)
+
+type debugMode_t int
+
+const (
+	__debugModeOff debugMode_t = iota
+	debugModeSimple
+	debugModeAdvanced
+)
+
+type rateLimitTestMode_t int
+
+const (
+	rateLimitByUUID rateLimitTestMode_t = iota
+	rateLimitByIpAddrHash
+	rateLimitByUUIDAndIpAddrHash
 )
 
 const (
@@ -29,9 +48,20 @@ When answering questions about the school Kris Cherven went to, talk about Grand
 or the 'resume section', or "the information provided" or any other meta-information provided in this paragraph when answering questions.
 The information about Kris Cherven is as follows:`
 
-	instructions2 = `Please answer the last of the following questions about Kris Cherven, using the previous questions as context. Please
-try to answer the question briefly. If you do not understand the question, or if the question is not a valid English question, please ask
-the questioner to clarify what they are asking:`
+	instructions2 = `Please answer the last of the following questions about Kris Cherven, using the preceding chat history as context.
+In the chat history, you are "AI" and the questioner is "USER". However, new messages should never be prefixed with "AI:". Also remember
+that you only have about 10 KB of chat history. Please try to answer the question briefly. If you do not understand the question, or if
+the question is not a valid English question, please ask the questioner to clarify what they are asking:`
+
+	debugMode = debugModeSimple
+
+	falseResponse = false
+
+	storageLimitPerClient = 1024 * 10
+	rateLimitMessage      = "Sorry, but please wait a couple minutes before sending another message."
+
+	GCMessageThreshold = 10000
+	GCTimeThreshold    = 7200
 )
 
 var (
@@ -40,13 +70,22 @@ var (
 		fmt.Sprintf("The current date is %s %d, %d.", time.Now().Month(), time.Now().Day(), time.Now().Year()),
 		"Kris Cherven is 24 years old.",
 	}
-	last10Questions []string
-	log             = logrus.New()
+	log               = logrus.New()
+	rateLimitCount    = 10
+	rateLimitDelay    = 120
+	rateLimitTestMode = rateLimitByUUIDAndIpAddrHash
+	falseResponseN    = make(map[string]uint64)
 )
 
 func fail(err error) {
 	if err != nil {
 		panic(err)
+	}
+}
+
+func assert(cond bool) {
+	if !cond {
+		panic("Assertion failed")
 	}
 }
 
@@ -155,7 +194,21 @@ func getSettings() settings {
 	return settings
 }
 
-func answerQuestion(question string, client *openai.Client, settings settings) string {
+func debugln(yes bool, x ...interface{}) {
+	if !yes {
+		return
+	}
+	assert(len(x) > 0)
+	switch x[0].(type) {
+	case string:
+		fmt.Printf(strings.Replace(x[0].(string), "$", "%", -1)+"\n", x[1:]...)
+	default:
+		fmt.Println(x...)
+	}
+}
+
+func answerQuestion(uuid string, ipAddrHash string, question string, settings settings, ctx context.Context,
+	conn *pgx.Conn, client *openai.Client, debugMode debugMode_t) string {
 
 	if settings.chatbotEnabled.v == false {
 		return "Sorry, but I cannot answer your question at the moment. Please try again later."
@@ -166,49 +219,223 @@ func answerQuestion(question string, client *openai.Client, settings settings) s
 			settings.maxQuestionLength.v)
 	}
 
-	last10Questions = append(last10Questions, question)
-	if len(last10Questions) > 10 {
-		last10Questions = last10Questions[1:11]
+	exec := func(query string, args ...any) {
+		_, err := conn.Exec(ctx, query, args...)
+		fail(err)
 	}
 
-	content := information() + "\n" + strings.Join(last10Questions, "\n")
+	query := func(query string, args ...any) pgx.Rows {
+		rows, err := conn.Query(ctx, query, args...)
+		fail(err)
+		return rows
+	}
 
-	// https://pkg.go.dev/github.com/sashabaranov/go-openai#Client.CreateChatCompletion
-	resp, err := client.CreateChatCompletion(context.Background(),
-		openai.ChatCompletionRequest{
-			Model:     openai.GPT4,
-			MaxTokens: 200,
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role:    openai.ChatMessageRoleUser,
-					Content: content,
+	rows := query(`SELECT key
+								 FROM ratelimit
+								 WHERE (key = $1 OR key = $2)
+								 AND count >= $3
+								 AND EXTRACT(EPOCH FROM (current_timestamp-timestamp_)) < $4`,
+		uuid, ipAddrHash, rateLimitCount, rateLimitDelay)
+
+	defer fail(rows.Err())
+	defer rows.Close()
+
+	if rows.Next() {
+		return rateLimitMessage
+	}
+
+	for _, key := range []string{uuid, ipAddrHash} {
+		rows = query(`SELECT key
+									FROM ratelimit
+									WHERE key = $1
+									AND count > 1
+									AND EXTRACT(EPOCH FROM (current_timestamp-timestamp_)) >= $2`,
+			key, rateLimitDelay)
+
+		if rows.Next() {
+			rows.Close()
+			fail(rows.Err())
+			exec("UPDATE ratelimit SET count = 0 WHERE key = $1", key)
+		} else {
+			rows.Close()
+			fail(rows.Err())
+		}
+	}
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	// Every ~10,000 messages (within an order of magnitude of 10 MB of data), cleanup
+	// messages older than 2 hours (GCTimeThreshold seconds). FIXME write a rationale for this
+	rnum := rng.Intn(GCMessageThreshold)
+
+	if rnum < 1 {
+		debugln(debugMode >= debugModeSimple, "Running random GC")
+		exec(`DELETE FROM message_queue
+					WHERE id IN (
+							SELECT id
+							FROM message_queue
+							WHERE uuid = (
+								SELECT uuid
+								FROM last_activity
+								WHERE uuid = $1
+								LIMIT 1
+							)
+						  AND EXTRACT(EPOCH FROM (current_timestamp-timestamp_)) >= $2
+					)`, uuid, GCTimeThreshold)
+	}
+
+	// debugln(debugMode >= debugModeSimple, uuid)
+
+	exec("INSERT INTO message_queue (uuid, message) VALUES ($1, $2)",
+		uuid, fmt.Sprintf("USER: %s", question))
+
+	exec(`INSERT INTO last_activity (uuid) VALUES ($1)
+													 ON CONFLICT (uuid)
+													 DO UPDATE SET timestamp_ = DEFAULT`, uuid)
+
+	if rateLimitTestMode == rateLimitByUUID || rateLimitTestMode == rateLimitByUUIDAndIpAddrHash {
+		exec(`INSERT INTO ratelimit (key) VALUES ($1)
+														ON CONFLICT (key)
+														DO UPDATE SET count = ratelimit.count + 1, timestamp_ = DEFAULT`, uuid)
+	}
+
+	if rateLimitTestMode == rateLimitByIpAddrHash || rateLimitTestMode == rateLimitByUUIDAndIpAddrHash {
+		exec(`INSERT INTO ratelimit (key) VALUES ($1)
+													 ON CONFLICT (key)
+													 DO UPDATE SET count = ratelimit.count + 1, timestamp_ = DEFAULT`, ipAddrHash)
+	}
+
+	rows = query("SELECT message FROM message_queue WHERE uuid = $1 ORDER BY timestamp_ ASC", uuid)
+
+	defer fail(rows.Err())
+	defer rows.Close()
+
+	var recentQuestions []string
+	var questionSizes []int
+	var questionsSize int
+
+	for rows.Next() {
+		var question string
+		if err := rows.Scan(&question); err != nil {
+			panic(err)
+		}
+		recentQuestions = append(recentQuestions, question)
+		questionSizes = append(questionSizes, len(question))
+		questionsSize += len(question)
+	}
+
+	// debugln(debugMode >= debugModeSimple, questionsSize)
+
+	// Start deleting questions after this user has consumed more than ~10KB storage
+	removedOldStorage := false
+	for questionsSize > storageLimitPerClient {
+		removedOldStorage = true
+		uuid_prefix := strings.Split(uuid, "-")[0]
+		if debugMode >= debugModeSimple {
+			fmt.Printf("Nuking questions for %s... due to storage exceeding %dKB (%d bytes left)\n",
+				uuid_prefix,
+				storageLimitPerClient/1024,
+				questionsSize)
+		}
+		exec(`DELETE FROM message_queue
+					WHERE id = (
+						SELECT id
+						FROM message_queue
+						WHERE uuid = $1
+						ORDER BY timestamp_ ASC
+						LIMIT 1
+				)`, uuid)
+		questionsSize -= questionSizes[0]
+		questionSizes = questionSizes[1:]
+	}
+
+	if removedOldStorage {
+		debugln(debugMode >= debugModeSimple, "Done nuking questions for $s. New storage is $d bytes\n", uuid, questionsSize)
+	}
+
+	debugln(debugMode >= debugModeSimple,
+		"--- BEGIN PREVIOUS CONVERSATION LOG ---\n"+strings.Join(recentQuestions, "\n")+"\n--- END PREVIOUS CONVERSATION LOG ---")
+
+	content := information() + "\n" + strings.Join(recentQuestions, "\n")
+
+	if falseResponse || client == nil {
+		falseResponseN[uuid]++
+		response := fmt.Sprintf("Response message #%d", falseResponseN[uuid])
+		exec(`INSERT INTO message_queue (uuid, message) VALUES ($1, $2)`, uuid, fmt.Sprintf("AI: %s", response))
+		return response
+	} else {
+		// https://pkg.go.dev/github.com/sashabaranov/go-openai#Client.CreateChatCompletion
+		resp, err := client.CreateChatCompletion(ctx,
+			openai.ChatCompletionRequest{
+				Model:     openai.GPT4,
+				MaxTokens: 200,
+				Messages: []openai.ChatCompletionMessage{
+					{
+						Role:    openai.ChatMessageRoleUser,
+						Content: content,
+					},
 				},
-			},
-		})
+			})
 
+		fail(err)
+		response := resp.Choices[0].Message.Content
+		exec(`INSERT INTO message_queue (uuid, message) VALUES ($1, $2)`, uuid, fmt.Sprintf("AI: %s", response))
+
+		return response
+	}
+}
+
+func setupDB(ctx context.Context) *pgx.Conn {
+
+	conn, err := pgx.Connect(ctx, "postgres://portfolio_cb_user@localhost:5432/portfolio_cb")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+		os.Exit(1)
+	}
+
+	_, err = conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS message_queue (
+																	                      id SERIAL PRIMARY KEY,
+																	                      uuid TEXT,
+																		                    message TEXT,
+																		                    timestamp_ TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`)
 	fail(err)
-	return resp.Choices[0].Message.Content
+
+	_, err = conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS last_activity (
+                                                        uuid TEXT PRIMARY KEY,
+																		 									  timestamp_ TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`)
+	fail(err)
+
+	_, err = conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS ratelimit (
+                                                        key TEXT PRIMARY KEY,
+																												count INTEGER DEFAULT 1,
+																		 									  timestamp_ TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`)
+	fail(err)
+
+	return conn
 }
 
 func main() {
+
 	settings := getSettings() // handle failure early
+	ctx := context.Background()
+	conn := setupDB(ctx)
+	defer conn.Close(ctx)
+
 	if len(os.Args) > 1 {
-		if os.Args[1] == "--question" {
-			if len(os.Args) > 2 {
-				fmt.Println(answerQuestion(os.Args[2], initializeClient(), settings))
-			} else {
-				fmt.Println("Error: Missing question after '--question'.")
-			}
+		if len(os.Args) == 4 {
+			fmt.Println(answerQuestion(os.Args[1], os.Args[2], os.Args[3], settings, ctx, conn, initializeClient(), __debugModeOff))
 		} else {
-			fmt.Println("Error: Invalid argument(s). Try ./portfolio-chatbot --question \"Who is Kris?\"")
+			fmt.Println("Error: Wrong format: Should be ./portfolio-chatbot {uuid} {ipAddrHash} \"{question}\".")
 		}
 	} else {
 		log.SetLevel(logrus.DebugLevel)
 		scanner := bufio.NewScanner(os.Stdin)
+		uuid_ := uuid.NewString()
+		fakeAddressHash := uuid.NewString()
 		client := initializeClient()
 		fmt.Println("(interactive mode) Hello! I am portfolio-chatbot. Please go ahead and ask me any questions you have about Kris!")
 		for scanner.Scan() {
-			fmt.Println(answerQuestion(scanner.Text(), client, settings))
+			fmt.Println(answerQuestion(uuid_, fakeAddressHash, scanner.Text(), settings, ctx, conn, client, debugMode))
 		}
 	}
 }

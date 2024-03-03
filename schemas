@@ -1,0 +1,16 @@
+message_queue (
+  id SERIAL PRIMARY KEY,
+  uuid TEXT,
+  message TEXT,
+  timestamp_ TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+
+last_activity (
+  uuid TEXT PRIMARY KEY,
+  timestamp_ TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+
+ratelimit (
+  key TEXT PRIMARY KEY,
+  timestamp_ TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
