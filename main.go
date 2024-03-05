@@ -146,13 +146,18 @@ func Maybe[T any](x T) Maybe_t[T] {
 	return Maybe_t[T]{x, true}
 }
 
-type settings struct {
+type WIPsettings struct {
 	chatbotEnabled    Maybe_t[bool]
 	maxQuestionLength Maybe_t[uint64]
 }
 
+type settings struct {
+	chatbotEnabled    bool
+	maxQuestionLength uint64
+}
+
 func getSettings() settings {
-	settings := settings{}
+	settings_ := WIPsettings{}
 	lines := strings.Split(readFile("./settings"), "\n")
 	for i, line := range lines {
 		if i == len(lines)-1 && strings.Trim(line, " ") == "" {
@@ -169,7 +174,7 @@ func getSettings() settings {
 		case "chatbot-enabled":
 			if val == "true" || val == "false" {
 				b, err := strconv.ParseBool(val)
-				settings.chatbotEnabled = Maybe(b)
+				settings_.chatbotEnabled = Maybe(b)
 				fail(err)
 			} else {
 				log.Fatalf("Setting '%s' has invalid val '%v'", setting, val)
@@ -177,7 +182,7 @@ func getSettings() settings {
 		case "max-question-length":
 			len, err := strconv.ParseUint(val, 10, 16)
 			if err == nil {
-				settings.maxQuestionLength = Maybe(len)
+				settings_.maxQuestionLength = Maybe(len)
 			} else {
 				log.Fatalf("Setting '%s' has invalid val '%v'", setting, val)
 			}
@@ -185,13 +190,16 @@ func getSettings() settings {
 			log.Errorf("Found setting '%s' with val '%v', but it's not a valid setting.", setting, val)
 		}
 	}
-	if !settings.chatbotEnabled.ok {
+	if !settings_.chatbotEnabled.ok {
 		log.Fatalf("Missing setting: chatbot-enabled")
 	}
-	if !settings.maxQuestionLength.ok {
+	if !settings_.maxQuestionLength.ok {
 		log.Fatalf("Missing setting: max-question-length")
 	}
-	return settings
+	return settings{
+		settings_.chatbotEnabled.v,
+		settings_.maxQuestionLength.v,
+	}
 }
 
 func debugln(yes bool, x ...interface{}) {
@@ -210,13 +218,13 @@ func debugln(yes bool, x ...interface{}) {
 func answerQuestion(uuid string, ipAddrHash string, question string, settings settings, ctx context.Context,
 	conn *pgx.Conn, client *openai.Client, debugMode debugMode_t) string {
 
-	if settings.chatbotEnabled.v == false {
+	if settings.chatbotEnabled == false {
 		return "Sorry, but I cannot answer your question at the moment. Please try again later."
 	}
 
-	if len(question) > int(settings.maxQuestionLength.v) {
+	if len(question) > int(settings.maxQuestionLength) {
 		return fmt.Sprintf("You question is too long (>%d characters). Please condense it and try again.",
-			settings.maxQuestionLength.v)
+			settings.maxQuestionLength)
 	}
 
 	exec := func(query string, args ...any) {
