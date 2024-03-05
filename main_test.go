@@ -21,15 +21,16 @@ func testRateLimit(t *testing.T) {
 	uuid_ := uuid.NewString()
 	ipAddrHash := uuid.NewString()
 	question := "Where is Kris?"
+	debugMode := __debugModeOff
 
 	for i := 0; i < rateLimitCount; i++ {
-		if answerQuestion(uuid_, ipAddrHash, question, getSettings(), ctx, conn, nil, debugModeSimple) !=
+		if answerQuestion(uuid_, ipAddrHash, question, getSettings(), ctx, conn, nil, debugMode) !=
 			fmt.Sprintf("Response message #%d", i+1) {
 			t.Fail()
 		}
 	}
 
-	if answerQuestion(uuid_, ipAddrHash, question, getSettings(), ctx, conn, nil, debugModeSimple) !=
+	if answerQuestion(uuid_, ipAddrHash, question, getSettings(), ctx, conn, nil, debugMode) !=
 		rateLimitMessage {
 		t.Fail()
 	}
@@ -37,13 +38,13 @@ func testRateLimit(t *testing.T) {
 	time.Sleep(time.Second * time.Duration(rateLimitDelay))
 
 	for i := rateLimitCount; i < rateLimitCount*2; i++ {
-		if answerQuestion(uuid_, ipAddrHash, question, getSettings(), ctx, conn, nil, debugModeSimple) !=
+		if answerQuestion(uuid_, ipAddrHash, question, getSettings(), ctx, conn, nil, debugMode) !=
 			fmt.Sprintf("Response message #%d", i+1) {
 			t.Fail()
 		}
 	}
 
-	if answerQuestion(uuid_, ipAddrHash, question, getSettings(), ctx, conn, nil, debugModeSimple) !=
+	if answerQuestion(uuid_, ipAddrHash, question, getSettings(), ctx, conn, nil, debugMode) !=
 		rateLimitMessage {
 		t.Fail()
 	}
