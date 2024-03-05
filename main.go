@@ -55,8 +55,6 @@ the question is not a valid English question, please ask the questioner to clari
 
 	debugMode = debugModeSimple
 
-	falseResponse = false
-
 	storageLimitPerClient = 1024 * 10
 	rateLimitMessage      = "Sorry, but please wait a couple minutes before sending another message."
 
@@ -148,11 +146,13 @@ func Maybe[T any](x T) Maybe_t[T] {
 
 type WIPsettings struct {
 	chatbotEnabled    Maybe_t[bool]
+	falseResponse     Maybe_t[bool]
 	maxQuestionLength Maybe_t[int]
 }
 
 type settings struct {
 	chatbotEnabled    bool
+	falseResponse     bool
 	maxQuestionLength int
 }
 
@@ -179,6 +179,14 @@ func getSettings() settings {
 			} else {
 				log.Fatalf("Setting '%s' has invalid val '%v'", setting, val)
 			}
+		case "false-response":
+			if val == "true" || val == "false" {
+				b, err := strconv.ParseBool(val)
+				settings_.falseResponse = Maybe(b)
+				fail(err)
+			} else {
+				log.Fatalf("Setting '%s' has invalid val '%v'", setting, val)
+			}
 		case "max-question-length":
 			len, err := strconv.ParseUint(val, 10, 16)
 			if err == nil {
@@ -193,11 +201,15 @@ func getSettings() settings {
 	if !settings_.chatbotEnabled.ok {
 		log.Fatalf("Missing setting: chatbot-enabled")
 	}
+	if !settings_.falseResponse.ok {
+		log.Fatalf("Missing setting: false-response")
+	}
 	if !settings_.maxQuestionLength.ok {
 		log.Fatalf("Missing setting: max-question-length")
 	}
 	return settings{
 		settings_.chatbotEnabled.v,
+		settings_.falseResponse.v,
 		settings_.maxQuestionLength.v,
 	}
 }
@@ -367,7 +379,7 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 
 	content := information() + "\n" + strings.Join(recentQuestions, "\n")
 
-	if falseResponse || client == nil {
+	if settings.falseResponse || client == nil {
 		falseResponseN[uuid]++
 		response := fmt.Sprintf("Response message #%d", falseResponseN[uuid])
 		exec(`INSERT INTO message_queue (uuid, message) VALUES ($1, $2)`, uuid, fmt.Sprintf("AI: %s", response))
