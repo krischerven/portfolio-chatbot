@@ -243,6 +243,8 @@ func debugln(yes bool, x ...interface{}) {
 	assert(len(x) > 0, "debugln called with only one argument")
 	switch x[0].(type) {
 	case string:
+		// go vet (and therefore go test) fails if we call a custom function with <fmt.Printf>-style
+		// formatting directives (e.g., %s, %d), so we use dollar-sign style directives (e.g., $s, $d) instead
 		fmt.Printf(strings.Replace(x[0].(string), "$", "%", -1)+"\n", x[1:]...)
 	default:
 		fmt.Println(x...)
