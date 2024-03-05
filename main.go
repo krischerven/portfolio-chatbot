@@ -148,12 +148,12 @@ func Maybe[T any](x T) Maybe_t[T] {
 
 type WIPsettings struct {
 	chatbotEnabled    Maybe_t[bool]
-	maxQuestionLength Maybe_t[uint64]
+	maxQuestionLength Maybe_t[int]
 }
 
 type settings struct {
 	chatbotEnabled    bool
-	maxQuestionLength uint64
+	maxQuestionLength int
 }
 
 func getSettings() settings {
@@ -182,7 +182,7 @@ func getSettings() settings {
 		case "max-question-length":
 			len, err := strconv.ParseUint(val, 10, 16)
 			if err == nil {
-				settings_.maxQuestionLength = Maybe(len)
+				settings_.maxQuestionLength = Maybe(int(len))
 			} else {
 				log.Fatalf("Setting '%s' has invalid val '%v'", setting, val)
 			}
@@ -222,7 +222,7 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 		return "Sorry, but I cannot answer your question at the moment. Please try again later."
 	}
 
-	if len(question) > int(settings.maxQuestionLength) {
+	if len(question) > settings.maxQuestionLength {
 		return fmt.Sprintf("You question is too long (>%d characters). Please condense it and try again.",
 			settings.maxQuestionLength)
 	}
