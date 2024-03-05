@@ -466,12 +466,14 @@ func main() {
 	defer conn.Close(ctx)
 
 	if len(os.Args) > 1 {
+		// command mode
 		if len(os.Args) == 4 {
 			fmt.Println(answerQuestion(os.Args[1], os.Args[2], os.Args[3], settings, ctx, conn, initializeClient(), __debugModeOff))
 		} else {
 			fmt.Println("Error: Wrong format: Should be ./portfolio-chatbot {uuid} {ipAddrHash} \"{question}\".")
 		}
 	} else {
+		// interactive mode
 		log.SetLevel(logrus.DebugLevel)
 		scanner := bufio.NewScanner(os.Stdin)
 		uuid_ := uuid.NewString()
@@ -479,6 +481,7 @@ func main() {
 		client := initializeClient()
 		fmt.Println("(interactive mode) Hello! I am portfolio-chatbot. Please go ahead and ask me any questions you have about Kris!")
 		for scanner.Scan() {
+			settings = getSettings()
 			fmt.Println(answerQuestion(uuid_, fakeAddressHash, scanner.Text(), settings, ctx, conn, client, debugMode))
 		}
 	}
