@@ -83,9 +83,9 @@ func fail(err error) {
 	}
 }
 
-func assert(cond bool) {
+func assert(cond bool, message string) {
 	if !cond {
-		panic("Assertion failed")
+		panic(message)
 	}
 }
 
@@ -206,7 +206,7 @@ func debugln(yes bool, x ...interface{}) {
 	if !yes {
 		return
 	}
-	assert(len(x) > 0)
+	assert(len(x) > 0, "debugln called with only one argument")
 	switch x[0].(type) {
 	case string:
 		fmt.Printf(strings.Replace(x[0].(string), "$", "%", -1)+"\n", x[1:]...)
