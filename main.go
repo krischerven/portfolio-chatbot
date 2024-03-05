@@ -292,8 +292,6 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 					)`, uuid, GCTimeThreshold)
 	}
 
-	// debugln(debugMode >= debugModeSimple, uuid)
-
 	exec("INSERT INTO message_queue (uuid, message) VALUES ($1, $2)",
 		uuid, fmt.Sprintf("USER: %s", question))
 
@@ -331,8 +329,6 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 		questionSizes = append(questionSizes, len(question))
 		questionsSize += len(question)
 	}
-
-	// debugln(debugMode >= debugModeSimple, questionsSize)
 
 	// Start deleting questions after this user has consumed more than ~10KB storage
 	removedOldStorage := false
@@ -401,23 +397,22 @@ func setupDB(ctx context.Context) *pgx.Conn {
 		os.Exit(1)
 	}
 
-	_, err = conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS message_queue (
-																	                      id SERIAL PRIMARY KEY,
-																	                      uuid TEXT,
-																		                    message TEXT,
-																		                    timestamp_ TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`)
-	fail(err)
+	exec := func(query string, args ...any) {
+		_, err := conn.Exec(ctx, query, args...)
+		fail(err)
+	}
 
-	_, err = conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS last_activity (
-                                                        uuid TEXT PRIMARY KEY,
-																		 									  timestamp_ TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`)
-	fail(err)
+	exec(`CREATE TABLE IF NOT EXISTS message_queue (id SERIAL PRIMARY KEY,
+																									uuid TEXT,
+																									message TEXT,
+																									timestamp_ TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`)
 
-	_, err = conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS ratelimit (
-                                                        key TEXT PRIMARY KEY,
-																												count INTEGER DEFAULT 1,
-																		 									  timestamp_ TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`)
-	fail(err)
+	exec(`CREATE TABLE IF NOT EXISTS last_activity (uuid TEXT PRIMARY KEY,
+																									timestamp_ TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`)
+
+	exec(`CREATE TABLE IF NOT EXISTS ratelimit (key TEXT PRIMARY KEY,
+																							count INTEGER DEFAULT 1,
+																							timestamp_ TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`)
 
 	return conn
 }
