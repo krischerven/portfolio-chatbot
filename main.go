@@ -158,60 +158,82 @@ type settings struct {
 
 func getSettings() settings {
 	settings_ := WIPsettings{}
-	lines := strings.Split(readFile("./settings"), "\n")
-	for i, line := range lines {
-		if i == len(lines)-1 && strings.Trim(line, " ") == "" {
-			break
-		}
-		kv := strings.Split(line, "=")
-		if len(kv) != 2 {
-			log.Errorf("Found malformed line '%s' in ./settings; skipping", line)
-			continue
-		}
-		setting := kv[0]
-		val := kv[1]
-		switch setting {
-		case "chatbot-enabled":
-			if val == "true" || val == "false" {
-				b, err := strconv.ParseBool(val)
-				settings_.chatbotEnabled = Maybe(b)
-				fail(err)
-			} else {
-				log.Fatalf("Setting '%s' has invalid val '%v'", setting, val)
+
+	loadSettings := func(fileName string, oldSettings *settings) settings {
+		lines := strings.Split(readFile(fileName), "\n")
+		for i, line := range lines {
+			if i == len(lines)-1 && strings.Trim(line, " ") == "" {
+				break
 			}
-		case "false-response":
-			if val == "true" || val == "false" {
-				b, err := strconv.ParseBool(val)
-				settings_.falseResponse = Maybe(b)
-				fail(err)
-			} else {
-				log.Fatalf("Setting '%s' has invalid val '%v'", setting, val)
+			kv := strings.Split(line, "=")
+			if len(kv) != 2 {
+				log.Errorf("Found malformed line '%s' in %s; skipping", line, fileName)
+				continue
 			}
-		case "max-question-length":
-			len, err := strconv.ParseUint(val, 10, 16)
-			if err == nil {
-				settings_.maxQuestionLength = Maybe(int(len))
-			} else {
-				log.Fatalf("Setting '%s' has invalid val '%v'", setting, val)
+			setting := kv[0]
+			val := kv[1]
+			switch setting {
+			case "chatbot-enabled":
+				if val == "true" || val == "false" {
+					b, err := strconv.ParseBool(val)
+					settings_.chatbotEnabled = Maybe(b)
+					fail(err)
+				} else {
+					log.Fatalf("%s: Setting '%s' has invalid val '%v'", fileName, setting, val)
+				}
+			case "false-response":
+				if val == "true" || val == "false" {
+					b, err := strconv.ParseBool(val)
+					settings_.falseResponse = Maybe(b)
+					fail(err)
+				} else {
+					log.Fatalf("%s: Setting '%s' has invalid val '%v'", fileName, setting, val)
+				}
+			case "max-question-length":
+				len, err := strconv.ParseUint(val, 10, 16)
+				if err == nil {
+					settings_.maxQuestionLength = Maybe(int(len))
+				} else {
+					log.Fatalf("%s: Setting '%s' has invalid val '%v'", fileName, setting, val)
+				}
+			default:
+				log.Errorf("%s: Found setting '%s' with val '%v', but it's not a valid setting.", fileName, setting, val)
 			}
-		default:
-			log.Errorf("Found setting '%s' with val '%v', but it's not a valid setting.", setting, val)
+		}
+		if oldSettings == nil {
+			if !settings_.chatbotEnabled.ok {
+				log.Fatalf("%s: Missing setting: chatbot-enabled", fileName)
+			}
+			if !settings_.falseResponse.ok {
+				log.Fatalf("%s: Missing setting: false-response", fileName)
+			}
+			if !settings_.maxQuestionLength.ok {
+				log.Fatalf("%s: Missing setting: max-question-length", fileName)
+			}
+		} else {
+			if !settings_.chatbotEnabled.ok {
+				settings_.chatbotEnabled = Maybe(oldSettings.chatbotEnabled)
+			}
+			if !settings_.falseResponse.ok {
+				settings_.falseResponse = Maybe(oldSettings.falseResponse)
+			}
+			if !settings_.maxQuestionLength.ok {
+				settings_.maxQuestionLength = Maybe(oldSettings.maxQuestionLength)
+			}
+		}
+		return settings{
+			settings_.chatbotEnabled.v,
+			settings_.falseResponse.v,
+			settings_.maxQuestionLength.v,
 		}
 	}
-	if !settings_.chatbotEnabled.ok {
-		log.Fatalf("Missing setting: chatbot-enabled")
+
+	settings := loadSettings("./settings", nil)
+	if fileExists("./local-settings") {
+		settings = loadSettings("./local-settings", &settings)
 	}
-	if !settings_.falseResponse.ok {
-		log.Fatalf("Missing setting: false-response")
-	}
-	if !settings_.maxQuestionLength.ok {
-		log.Fatalf("Missing setting: max-question-length")
-	}
-	return settings{
-		settings_.chatbotEnabled.v,
-		settings_.falseResponse.v,
-		settings_.maxQuestionLength.v,
-	}
+
+	return settings
 }
 
 func debugln(yes bool, x ...interface{}) {
