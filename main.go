@@ -222,6 +222,11 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 		return "Sorry, but I cannot answer your question at the moment. Please try again later."
 	}
 
+	// Only relevant when portfolio-chatbot is run interactively; It's impossible to send empty messages via the frontend
+	if len(strings.Trim(question, " \t\n\r\v\f")) == 0 {
+		return "Please ask me a question."
+	}
+
 	if len(question) > settings.maxQuestionLength {
 		return fmt.Sprintf("You question is too long (>%d characters). Please condense it and try again.",
 			settings.maxQuestionLength)
