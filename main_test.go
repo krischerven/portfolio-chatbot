@@ -64,3 +64,17 @@ func TestRateLimitByUUIDAndIpAddrHash(t *testing.T) {
 	rateLimitTestMode = rateLimitByUUIDAndIpAddrHash
 	testRateLimit(t)
 }
+
+func BenchmarkFalseResponse(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		ctx := context.Background()
+		conn := setupDB(ctx)
+		defer conn.Close(ctx)
+
+		uuid_ := uuid.NewString()
+		ipAddrHash := uuid.NewString()
+		question := "Where is Kris?"
+
+		answerQuestion(uuid_, ipAddrHash, question, getSettings(), ctx, conn, nil, __debugModeOff)
+	}
+}
