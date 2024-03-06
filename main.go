@@ -55,8 +55,7 @@ the question is not a valid English question, please ask the questioner to clari
 
 	debugMode = debugModeSimple
 
-	storageLimitPerClient = 1024 * 10
-	rateLimitMessage      = "Sorry, but please wait a couple minutes before sending another message."
+	rateLimitMessage = "Sorry, but please wait a couple minutes before sending another message."
 
 	GCMessageThreshold = 10000
 	GCTimeThreshold    = 7200
@@ -68,11 +67,12 @@ var (
 		fmt.Sprintf("The current date is %s %d, %d.", time.Now().Month(), time.Now().Day(), time.Now().Year()),
 		"Kris Cherven is 24 years old.",
 	}
-	log               = logrus.New()
-	rateLimitCount    = 10
-	rateLimitDelay    = 120
-	rateLimitTestMode = rateLimitByUUIDAndIpAddrHash
-	falseResponseN    = make(map[string]uint64)
+	falseResponseN        = make(map[string]uint64)
+	log                   = logrus.New()
+	rateLimitCount        = 10
+	rateLimitDelay        = 120
+	rateLimitTestMode     = rateLimitByUUIDAndIpAddrHash
+	storageLimitPerClient = 1024 * 10
 )
 
 func fail(err error) {
