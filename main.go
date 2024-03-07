@@ -388,7 +388,7 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 		removedOldStorage = true
 		uuid_prefix := strings.Split(uuid, "-")[0]
 		if debugMode >= debugModeSimple {
-			fmt.Printf("Nuking questions for %s... due to storage exceeding %dKB (%d bytes left)\n",
+			fmt.Printf("Pruning storage for %s... due to data exceeding %dKB (%d bytes left)\n",
 				uuid_prefix,
 				storageLimitPerClient/1024,
 				questionsSize)
@@ -406,7 +406,7 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 	}
 
 	if removedOldStorage {
-		debugln(debugMode >= debugModeSimple, "Done nuking questions for $s. New storage is $d bytes\n", uuid, questionsSize)
+		debugln(debugMode >= debugModeSimple, "Done pruning storage for $s. New storage is $d bytes\n", uuid, questionsSize)
 	}
 
 	debugln(debugMode >= debugModeSimple,
@@ -492,7 +492,7 @@ func main() {
 		client := initializeClient()
 		fmt.Println("(interactive mode) Hello! I am portfolio-chatbot. Please go ahead and ask me any questions you have about Kris!")
 		for scanner.Scan() {
-			settings = getSettings()
+			settings = getSettings() // settings may have changed by now
 			fmt.Println(answerQuestion(uuid_, fakeAddressHash, scanner.Text(), settings, ctx, conn, client, debugMode))
 		}
 	}
