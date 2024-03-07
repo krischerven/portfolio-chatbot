@@ -7,6 +7,7 @@ require (
 	github.com/jackc/pgx/v5 v5.5.3
 	github.com/sashabaranov/go-openai v1.19.3
 	github.com/sirupsen/logrus v1.9.3
+	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
 )
 
 require (

@@ -55,8 +55,6 @@ the question is not a valid English question, please ask the questioner to clari
 
 	debugMode = debugModeSimple
 
-	rateLimitMessage = "Sorry, but please wait a couple minutes before sending another message."
-
 	GCMessageThreshold = 10000
 	GCTimeThreshold    = 7200
 )
@@ -70,10 +68,19 @@ var (
 	falseResponseN        = make(map[string]uint64)
 	log                   = logrus.New()
 	rateLimitCount        = 10
-	rateLimitDelay        = 120
+	rateLimitDelay        = 120 * 1000
 	rateLimitTestMode     = rateLimitByUUIDAndIpAddrHash
 	storageLimitPerClient = 1024 * 10
 )
+
+func rateLimitMessage(timeRemaining int) string {
+	timeRemaining = Max(1, timeRemaining)
+	if timeRemaining == 1 {
+		return fmt.Sprintf("Sorry, but please wait %d more second before sending another message.", timeRemaining)
+	} else {
+		return fmt.Sprintf("Sorry, but please wait %d more seconds before sending another message.", timeRemaining)
+	}
+}
 
 func fail(err error) {
 	if err != nil {
@@ -279,18 +286,22 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 		return rows
 	}
 
-	rows := query(`SELECT key
+	rows := query(`SELECT (EXTRACT(EPOCH FROM (current_timestamp - timestamp_)) * 1000)::INT
 								 FROM ratelimit
 								 WHERE (key = $1 OR key = $2)
 								 AND count >= $3
-								 AND EXTRACT(EPOCH FROM (current_timestamp-timestamp_)) < $4`,
+								 AND (EXTRACT(EPOCH FROM (current_timestamp - timestamp_))*1000)::INT < $4`,
 		uuid, ipAddrHash, rateLimitCount, rateLimitDelay)
 
 	defer fail(rows.Err())
 	defer rows.Close()
 
 	if rows.Next() {
-		return rateLimitMessage
+		var timeElapsed int
+		if err := rows.Scan(&timeElapsed); err != nil {
+			panic(err)
+		}
+		return rateLimitMessage(Ceil((float64(rateLimitDelay) - float64(timeElapsed)) / 1000.0))
 	}
 
 	for _, key := range []string{uuid, ipAddrHash} {
@@ -298,7 +309,7 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 									FROM ratelimit
 									WHERE key = $1
 									AND count > 1
-									AND EXTRACT(EPOCH FROM (current_timestamp-timestamp_)) >= $2`,
+									AND (EXTRACT(EPOCH FROM (current_timestamp - timestamp_))*1000)::INT >= $2`,
 			key, rateLimitDelay)
 
 		if rows.Next() {

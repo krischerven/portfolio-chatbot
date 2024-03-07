@@ -21,7 +21,8 @@ func testRateLimit(t *testing.T) {
 
 	// globals
 	rateLimitCount = 5
-	rateLimitDelay = 1
+	// Anything less than ~30 is too high-resolution - ratelimits will never occur
+	rateLimitDelay = 30
 
 	ctx := context.Background()
 	conn := setupDB(ctx)
@@ -29,32 +30,33 @@ func testRateLimit(t *testing.T) {
 
 	uuid_ := uuid.NewString()
 	ipAddrHash := uuid.NewString()
+	settings := getSettings()
 	question := "Where is Kris?"
 	debugMode := __debugModeOff
 
 	for i := 0; i < rateLimitCount; i++ {
-		if answerQuestion(uuid_, ipAddrHash, question, getSettings(), ctx, conn, nil, debugMode) !=
+		if answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode) !=
 			fmt.Sprintf("Response message #%d", i+1) {
 			t.Fail()
 		}
 	}
 
-	if answerQuestion(uuid_, ipAddrHash, question, getSettings(), ctx, conn, nil, debugMode) !=
-		rateLimitMessage {
+	if answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode) !=
+		rateLimitMessage(rateLimitDelay/1000) {
 		t.Fail()
 	}
 
-	time.Sleep(time.Second * time.Duration(rateLimitDelay))
+	time.Sleep(time.Millisecond * time.Duration(rateLimitDelay))
 
 	for i := rateLimitCount; i < rateLimitCount*2; i++ {
-		if answerQuestion(uuid_, ipAddrHash, question, getSettings(), ctx, conn, nil, debugMode) !=
+		if answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode) !=
 			fmt.Sprintf("Response message #%d", i+1) {
 			t.Fail()
 		}
 	}
 
-	if answerQuestion(uuid_, ipAddrHash, question, getSettings(), ctx, conn, nil, debugMode) !=
-		rateLimitMessage {
+	if answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode) !=
+		rateLimitMessage(rateLimitDelay/1000) {
 		t.Fail()
 	}
 
