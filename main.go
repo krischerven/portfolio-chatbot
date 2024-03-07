@@ -181,6 +181,13 @@ func getSettings() settings {
 			}
 			setting := kv[0]
 			val := kv[1]
+			outOfRange := func(val, lRange, uRange int64) {
+				if val < lRange {
+					log.Fatalf("%s: Setting '%s' is out-of-range (%d < %d)", fileName, setting, val, lRange)
+				} else if val > uRange {
+					log.Fatalf("%s: Setting '%s' is out-of-range (%d > %d)", fileName, setting, val, uRange)
+				}
+			}
 			switch setting {
 			case "chatbot-enabled":
 				if val == "true" || val == "false" {
@@ -199,22 +206,25 @@ func getSettings() settings {
 					log.Fatalf("%s: Setting '%s' has invalid val '%v'", fileName, setting, val)
 				}
 			case "max-question-length":
-				len, err := strconv.ParseUint(val, 10, 16)
+				len, err := strconv.ParseInt(val, 10, 64)
 				if err == nil {
+					outOfRange(len, 1, 2000)
 					settings_.maxQuestionLength = Maybe(int(len))
 				} else {
 					log.Fatalf("%s: Setting '%s' has invalid val '%v'", fileName, setting, val)
 				}
 			case "rate-limit-count":
-				len, err := strconv.ParseUint(val, 10, 16)
+				len, err := strconv.ParseInt(val, 10, 64)
 				if err == nil {
+					outOfRange(len, 1, 100)
 					settings_.rateLimitCount = Maybe(int(len))
 				} else {
 					log.Fatalf("%s: Setting '%s' has invalid val '%v'", fileName, setting, val)
 				}
 			case "rate-limit-delay":
-				len, err := strconv.ParseUint(val, 10, 32)
+				len, err := strconv.ParseInt(val, 10, 64)
 				if err == nil {
+					outOfRange(len, 30, 3600*1000)
 					settings_.rateLimitDelay = Maybe(int(len))
 				} else {
 					log.Fatalf("%s: Setting '%s' has invalid val '%v'", fileName, setting, val)
