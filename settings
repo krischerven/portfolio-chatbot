@@ -1,3 +1,5 @@
 chatbot-enabled=true
 false-response=false
 max-question-length=200
+rate-limit-count=10
+rate-limit-delay=120000

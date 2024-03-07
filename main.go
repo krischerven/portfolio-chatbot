@@ -67,8 +67,6 @@ var (
 	}
 	falseResponseN        = make(map[string]uint64)
 	log                   = logrus.New()
-	rateLimitCount        = 10
-	rateLimitDelay        = 120 * 1000
 	rateLimitTestMode     = rateLimitByUUIDAndIpAddrHash
 	storageLimitPerClient = 1024 * 10
 )
@@ -155,12 +153,16 @@ type WIPsettings struct {
 	chatbotEnabled    Maybe_t[bool]
 	falseResponse     Maybe_t[bool]
 	maxQuestionLength Maybe_t[int]
+	rateLimitCount    Maybe_t[int]
+	rateLimitDelay    Maybe_t[int]
 }
 
 type settings struct {
 	chatbotEnabled    bool
 	falseResponse     bool
 	maxQuestionLength int
+	rateLimitCount    int
+	rateLimitDelay    int
 }
 
 func getSettings() settings {
@@ -203,6 +205,20 @@ func getSettings() settings {
 				} else {
 					log.Fatalf("%s: Setting '%s' has invalid val '%v'", fileName, setting, val)
 				}
+			case "rate-limit-count":
+				len, err := strconv.ParseUint(val, 10, 16)
+				if err == nil {
+					settings_.rateLimitCount = Maybe(int(len))
+				} else {
+					log.Fatalf("%s: Setting '%s' has invalid val '%v'", fileName, setting, val)
+				}
+			case "rate-limit-delay":
+				len, err := strconv.ParseUint(val, 10, 32)
+				if err == nil {
+					settings_.rateLimitDelay = Maybe(int(len))
+				} else {
+					log.Fatalf("%s: Setting '%s' has invalid val '%v'", fileName, setting, val)
+				}
 			default:
 				log.Errorf("%s: Found setting '%s' with val '%v', but it's not a valid setting.", fileName, setting, val)
 			}
@@ -217,6 +233,12 @@ func getSettings() settings {
 			if !settings_.maxQuestionLength.ok {
 				log.Fatalf("%s: Missing setting: max-question-length", fileName)
 			}
+			if !settings_.rateLimitCount.ok {
+				log.Fatalf("%s: Missing setting: rate-limit-count", fileName)
+			}
+			if !settings_.rateLimitDelay.ok {
+				log.Fatalf("%s: Missing setting: rate-limit-delay", fileName)
+			}
 		} else {
 			if !settings_.chatbotEnabled.ok {
 				settings_.chatbotEnabled = Maybe(oldSettings.chatbotEnabled)
@@ -227,11 +249,19 @@ func getSettings() settings {
 			if !settings_.maxQuestionLength.ok {
 				settings_.maxQuestionLength = Maybe(oldSettings.maxQuestionLength)
 			}
+			if !settings_.rateLimitCount.ok {
+				settings_.rateLimitCount = Maybe(oldSettings.rateLimitCount)
+			}
+			if !settings_.rateLimitDelay.ok {
+				settings_.rateLimitDelay = Maybe(oldSettings.rateLimitDelay)
+			}
 		}
 		return settings{
 			settings_.chatbotEnabled.v,
 			settings_.falseResponse.v,
 			settings_.maxQuestionLength.v,
+			settings_.rateLimitCount.v,
+			settings_.rateLimitDelay.v,
 		}
 	}
 
@@ -291,7 +321,7 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 								 WHERE (key = $1 OR key = $2)
 								 AND count >= $3
 								 AND (EXTRACT(EPOCH FROM (current_timestamp - timestamp_))*1000)::INT < $4`,
-		uuid, ipAddrHash, rateLimitCount, rateLimitDelay)
+		uuid, ipAddrHash, settings.rateLimitCount, settings.rateLimitDelay)
 
 	defer fail(rows.Err())
 	defer rows.Close()
@@ -301,7 +331,7 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 		if err := rows.Scan(&timeElapsed); err != nil {
 			panic(err)
 		}
-		return rateLimitMessage(Ceil((float64(rateLimitDelay) - float64(timeElapsed)) / 1000.0))
+		return rateLimitMessage(Ceil((float64(settings.rateLimitDelay) - float64(timeElapsed)) / 1000.0))
 	}
 
 	for _, key := range []string{uuid, ipAddrHash} {
@@ -310,7 +340,7 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 									WHERE key = $1
 									AND count > 1
 									AND (EXTRACT(EPOCH FROM (current_timestamp - timestamp_))*1000)::INT >= $2`,
-			key, rateLimitDelay)
+			key, settings.rateLimitDelay)
 
 		if rows.Next() {
 			rows.Close()
