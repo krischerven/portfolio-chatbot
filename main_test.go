@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"math"
 )
 
 func testAssert(t *testing.T, cond bool) {
@@ -20,6 +21,7 @@ func testAssert(t *testing.T, cond bool) {
 func testRateLimit(t *testing.T) {
 
 	settings := getSettings()
+
 	// globals
 	settings.rateLimitCount = 5
 	// Anything less than ~30 is too high-resolution - ratelimits will never occur
@@ -153,6 +155,65 @@ func TestHistoryPruning(t *testing.T) {
 	answerQuestion(uuid_, ipAddrHash, questions[4], getSettings(), ctx, conn, nil, debugMode)
 	testAssert(t, len(getDataSoFar()) == 4 && getDataSoFar()[2] == "USER: "+questions[4])
 	// printList(getDataSoFar())
+}
+
+func TestMessageGC(t *testing.T) {
+
+	iterationsI := 5
+  // iterationsJ must be >= 2 because the GC runs before a message is sent
+	iterationsJ := 2
+
+	settings := getSettings()
+	settings.rateLimitCount = iterationsI * iterationsJ
+
+	// globals
+	storageLimitPerClient = math.MaxInt64
+	GCMessageThreshold = iterationsJ
+	GCTimeThreshold = 100
+
+	ctx := context.Background()
+	conn := setupDB(ctx)
+	defer conn.Close(ctx)
+
+	uuid_ := uuid.NewString()
+	ipAddrHash := uuid.NewString()
+	question := "Where is Kris?"
+	debugMode := __debugModeOff
+	GCs := 0
+
+	getMessageCount := func() int {
+		query := func(query string, args ...any) pgx.Rows {
+			rows, err := conn.Query(ctx, query, args...)
+			fail(err)
+			return rows
+		}
+		rows := query(`SELECT count(message) FROM message_queue WHERE uuid = $1`, uuid_)
+		var count int
+		if rows.Next() {
+			fail(rows.Scan(&count))
+			rows.Close()
+			fail(rows.Err())
+		}
+		return count
+	}
+
+	// create settings.iterationsI*iterationsJ*2 messages
+	for i := 0; i < iterationsI; i++ {
+		for j := 0; j < iterationsJ; j++ {
+			count := getMessageCount()
+			answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode)
+			if getMessageCount() < count {
+				GCs++
+			}
+		}
+		time.Sleep(time.Millisecond * time.Duration(GCTimeThreshold))
+	}
+
+	count := getMessageCount()
+	fmt.Printf("TestMessageGC: count=%d\n", count)
+	fmt.Printf("TestMessageGC: GCs=%d\n", GCs)
+	// If one of these is true, the other must also be true. But it's trivial to test both anyway.
+	testAssert(t, count < iterationsI*iterationsJ*2 && GCs > 0)
 }
 
 func BenchmarkFalseResponse(b *testing.B) {

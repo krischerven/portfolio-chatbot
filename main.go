@@ -54,9 +54,6 @@ that you only have about 10 KB of chat history. Please try to answer the questio
 the question is not a valid English question, please ask the questioner to clarify what they are asking:`
 
 	debugMode = debugModeSimple
-
-	GCMessageThreshold = 10000
-	GCTimeThreshold    = 7200
 )
 
 var (
@@ -69,6 +66,8 @@ var (
 	log                   = logrus.New()
 	rateLimitTestMode     = rateLimitByUUIDAndIpAddrHash
 	storageLimitPerClient = 1024 * 10
+	GCMessageThreshold    = 10000
+	GCTimeThreshold       = 7200 * 1000
 )
 
 func rateLimitMessage(timeRemaining int) string {
@@ -364,8 +363,8 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	// Every ~10,000 messages (within an order of magnitude of 10 MB of data), cleanup
-	// messages older than 2 hours (GCTimeThreshold seconds). FIXME write a rationale for this
+	// Every ~10,000 (GCMessageThreshold) messages (within an order of magnitude of 10 MB of data) ,
+	// prune messages older than 2 hours (GCTimeThreshold/1000 seconds). FIXME write a rationale for this
 	rnum := rng.Intn(GCMessageThreshold)
 
 	if rnum < 1 {
@@ -380,7 +379,7 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 								WHERE uuid = $1
 								LIMIT 1
 							)
-						  AND EXTRACT(EPOCH FROM (current_timestamp-timestamp_)) >= $2
+						  AND (EXTRACT(EPOCH FROM (current_timestamp - timestamp_))*1000)::INT >= $2
 					)`, uuid, GCTimeThreshold)
 	}
 
