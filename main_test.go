@@ -37,30 +37,22 @@ func testRateLimit(t *testing.T) {
 	debugMode := __debugModeOff
 
 	for i := 0; i < settings.rateLimitCount; i++ {
-		if answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode) !=
-			fmt.Sprintf("Response message #%d", i+1) {
-			t.Fail()
-		}
+		testAssert(t, answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode) ==
+			fmt.Sprintf("Response message #%d", i+1))
 	}
 
-	if answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode) !=
-		rateLimitMessage(settings.rateLimitDelay/1000) {
-		t.Fail()
-	}
+	testAssert(t, answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode) ==
+		rateLimitMessage(settings.rateLimitDelay/1000))
 
 	time.Sleep(time.Millisecond * time.Duration(settings.rateLimitDelay))
 
 	for i := settings.rateLimitCount; i < settings.rateLimitCount*2; i++ {
-		if answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode) !=
-			fmt.Sprintf("Response message #%d", i+1) {
-			t.Fail()
-		}
+		testAssert(t, answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode) ==
+			fmt.Sprintf("Response message #%d", i+1))
 	}
 
-	if answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode) !=
-		rateLimitMessage(settings.rateLimitDelay/1000) {
-		t.Fail()
-	}
+	testAssert(t, answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode) ==
+		rateLimitMessage(settings.rateLimitDelay/1000))
 
 }
 
@@ -96,24 +88,19 @@ func TestHistoryPruning(t *testing.T) {
 	storageLimitPerClient = 250
 
 	query := func(query string, args ...any) pgx.Rows {
-		rows, err := conn.Query(ctx, query, args...)
-		fail(err)
-		return rows
+		return unwrap(conn.Query(ctx, query, args...))
 	}
 
 	getDataSoFar := func() []string {
-		rows := query("SELECT message FROM message_queue WHERE uuid = $1 ORDER BY timestamp_ ASC", uuid_)
 
-		defer fail(rows.Err())
-		defer rows.Close()
+		rows := query("SELECT message FROM message_queue WHERE uuid = $1 ORDER BY timestamp_ ASC", uuid_)
+		defer finishRows(rows)
 
 		var recentQuestions []string
 
 		for rows.Next() {
 			var question string
-			if err := rows.Scan(&question); err != nil {
-				panic(err)
-			}
+			fail(rows.Scan(&question))
 			recentQuestions = append(recentQuestions, question)
 		}
 
@@ -160,7 +147,7 @@ func TestHistoryPruning(t *testing.T) {
 func TestMessageGC(t *testing.T) {
 
 	iterationsI := 5
-  // iterationsJ must be >= 2 because the GC runs before a message is sent
+	// iterationsJ must be >= 2 because the GC runs before a message is sent
 	iterationsJ := 2
 
 	settings := getSettings()
@@ -183,16 +170,13 @@ func TestMessageGC(t *testing.T) {
 
 	getMessageCount := func() int {
 		query := func(query string, args ...any) pgx.Rows {
-			rows, err := conn.Query(ctx, query, args...)
-			fail(err)
-			return rows
+			return unwrap(conn.Query(ctx, query, args...))
 		}
 		rows := query(`SELECT count(message) FROM message_queue WHERE uuid = $1`, uuid_)
 		var count int
 		if rows.Next() {
 			fail(rows.Scan(&count))
-			rows.Close()
-			fail(rows.Err())
+			finishRows(rows)
 		}
 		return count
 	}

@@ -8,7 +8,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -79,24 +78,6 @@ func rateLimitMessage(timeRemaining int) string {
 	}
 }
 
-func fail(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
-func assert(cond bool, message string) {
-	if !cond {
-		panic(message)
-	}
-}
-
-func readFile(name string) string {
-	bs, err := os.ReadFile(name)
-	fail(err)
-	return string(bs)
-}
-
 func initializeClient() *openai.Client {
 
 	apiKey := strings.TrimRight(readFile("API_KEY"), "\r\n")
@@ -105,17 +86,6 @@ func initializeClient() *openai.Client {
 	}
 
 	return openai.NewClient(apiKey)
-}
-
-func fileExists(name string) bool {
-	_, err := os.Stat(name)
-	if err == nil {
-		return true
-	}
-	if errors.Is(err, os.ErrNotExist) {
-		return false
-	}
-	panic(err)
 }
 
 func information() string {
@@ -137,15 +107,6 @@ func information() string {
 		os.WriteFile(outFile, []byte(text), 0644)
 	}
 	return readFile(outFile)
-}
-
-type Maybe_t[T any] struct {
-	v  T
-	ok bool
-}
-
-func Maybe[T any](x T) Maybe_t[T] {
-	return Maybe_t[T]{x, true}
 }
 
 type WIPsettings struct {
@@ -315,31 +276,25 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 	}
 
 	exec := func(query string, args ...any) {
-		_, err := conn.Exec(ctx, query, args...)
-		fail(err)
+		unwrap(conn.Exec(ctx, query, args...))
 	}
 
 	query := func(query string, args ...any) pgx.Rows {
-		rows, err := conn.Query(ctx, query, args...)
-		fail(err)
-		return rows
+		return unwrap(conn.Query(ctx, query, args...))
 	}
 
 	rows := query(`SELECT (EXTRACT(EPOCH FROM (current_timestamp - timestamp_)) * 1000)::INT
 								 FROM ratelimit
 								 WHERE (key = $1 OR key = $2)
 								 AND count >= $3
-								 AND (EXTRACT(EPOCH FROM (current_timestamp - timestamp_))*1000)::INT < $4`,
+								 AND EXTRACT(EPOCH FROM (current_timestamp - timestamp_))*1000 < $4`,
 		uuid, ipAddrHash, settings.rateLimitCount, settings.rateLimitDelay)
 
-	defer fail(rows.Err())
-	defer rows.Close()
+	defer finishRows(rows)
 
 	if rows.Next() {
 		var timeElapsed int
-		if err := rows.Scan(&timeElapsed); err != nil {
-			panic(err)
-		}
+		fail(rows.Scan(&timeElapsed))
 		return rateLimitMessage(Ceil((float64(settings.rateLimitDelay) - float64(timeElapsed)) / 1000.0))
 	}
 
@@ -348,16 +303,14 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 									FROM ratelimit
 									WHERE key = $1
 									AND count > 1
-									AND (EXTRACT(EPOCH FROM (current_timestamp - timestamp_))*1000)::INT >= $2`,
+									AND EXTRACT(EPOCH FROM (current_timestamp - timestamp_))*1000 >= $2`,
 			key, settings.rateLimitDelay)
 
 		if rows.Next() {
-			rows.Close()
-			fail(rows.Err())
+			finishRows(rows)
 			exec("UPDATE ratelimit SET count = 0 WHERE key = $1", key)
 		} else {
-			rows.Close()
-			fail(rows.Err())
+			finishRows(rows)
 		}
 	}
 
@@ -379,7 +332,7 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 								WHERE uuid = $1
 								LIMIT 1
 							)
-						  AND (EXTRACT(EPOCH FROM (current_timestamp - timestamp_))*1000)::INT >= $2
+						  AND EXTRACT(EPOCH FROM (current_timestamp - timestamp_))*1000 >= $2
 					)`, uuid, GCTimeThreshold)
 	}
 
@@ -403,9 +356,7 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 	}
 
 	rows = query("SELECT message FROM message_queue WHERE uuid = $1 ORDER BY timestamp_ ASC", uuid)
-
-	defer fail(rows.Err())
-	defer rows.Close()
+	defer finishRows(rows)
 
 	var recentQuestions []string
 	var questionSizes []int
@@ -413,9 +364,7 @@ func answerQuestion(uuid string, ipAddrHash string, question string, settings se
 
 	for rows.Next() {
 		var question string
-		if err := rows.Scan(&question); err != nil {
-			panic(err)
-		}
+		fail(rows.Scan(&question))
 		recentQuestions = append(recentQuestions, question)
 		questionSizes = append(questionSizes, len(question))
 		questionsSize += len(question)
@@ -489,8 +438,7 @@ func setupDB(ctx context.Context) *pgx.Conn {
 	}
 
 	exec := func(query string, args ...any) {
-		_, err := conn.Exec(ctx, query, args...)
-		fail(err)
+		unwrap(conn.Exec(ctx, query, args...))
 	}
 
 	exec(`CREATE TABLE IF NOT EXISTS message_queue (id SERIAL PRIMARY KEY,
