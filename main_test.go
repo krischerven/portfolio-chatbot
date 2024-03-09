@@ -186,6 +186,7 @@ func TestMessageGC(t *testing.T) {
 		for j := 0; j < iterationsJ; j++ {
 			count := getMessageCount()
 			answerQuestion(uuid_, ipAddrHash, question, settings, ctx, conn, nil, debugMode)
+			// This will only count GCs that removed data, not all GCs
 			if getMessageCount() < count {
 				GCs++
 			}
