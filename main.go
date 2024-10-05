@@ -40,6 +40,7 @@ takes priority over information in the resume section. The resume section starts
 text END OF RESUME SECTION. The facts section starts after the text BEGINNING OF FACTS SECTION and ends at the text END OF FACTS SECTION.
 When answering questions about the school Kris Cherven went to, talk about Grand Circus Java Bootcamp. Do not mention the 'facts section'
 or the 'resume section', or "the information provided" or any other meta-information provided in this paragraph when answering questions.
+When you don't know something, always say you don't know it - do not say any "the information provided" or similar terms.
 The information about Kris Cherven is as follows:`
 
 	instructions2 = `Please answer the last of the following questions about Kris Cherven, using the preceding chat history as context.
